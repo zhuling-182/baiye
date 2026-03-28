@@ -250,30 +250,42 @@
         const CLOUDBASE_ENV_ID = "my-graph-6gryb0wt964d13c6"; // 比如：my-dev-env-12345
         
         // 初始化腾讯云
-        async function initCloudBase() {
-            try {
-                // 初始化云开发
-                const app = cloudbase.init({
-                    env: CLOUDBASE_ENV_ID
-                });
-                
-                // 匿名登录（无需注册，直接使用）
-                await app.auth({ persistence: "local" }).anonymousAuthProvider().signIn();
-                
-                // 获取数据库实例
-                db = app.database();
-                console.log("腾讯云初始化成功！");
-                showNotification("数据同步已连接", "success");
-                
-                // 加载云端数据
-                await loadDataFromCloud();
-            } catch (e) {
-                console.error("腾讯云初始化失败：", e);
-                showNotification("数据同步连接失败，将使用本地数据", "warning");
-                // 降级使用本地数据
-                loadLocalData();
-            }
-        }
+async function initCloudBase() {
+    try {
+        // 先加载最新版 SDK（解决版本兼容问题）
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/tcb-js-sdk@2.19.0/dist/tcb.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+
+        // 初始化云开发（用最新语法）
+        const app = window.tcb.init({
+            env: "my-graph-6gryb0wt964d13c6", // 你的环境ID
+            region: "ap-guangzhou" // 必须加地域！改成你创建环境时选的地域（广州/上海/北京）
+        });
+        
+        // 匿名登录（兼容新版 SDK）
+        const auth = app.auth({ persistence: "local" });
+        await auth.anonymousAuthProvider().signIn();
+        
+        // 获取数据库实例
+        db = app.database();
+        console.log("腾讯云初始化成功！");
+        showNotification("数据同步已连接", "success");
+        
+        // 加载云端数据
+        await loadDataFromCloud();
+    } catch (e) {
+        console.error("腾讯云初始化失败：", e);
+        // 显示具体错误信息
+        showNotification(`连接失败：${e.message || e}`, "error");
+        // 降级使用本地数据
+        loadLocalData();
+    }
+}
 
         // 从云端加载数据
         async function loadDataFromCloud() {
