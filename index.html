@@ -7,8 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome -->
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-    <!-- 腾讯云 CloudBase Web SDK -->
-    <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.7.0/cloudbase.full.js"></script>
+    <!-- 腾讯云 CloudBase Web SDK（最新稳定版） -->
+    <script src="https://unpkg.com/tcb-js-sdk@2.19.0/dist/tcb.js"></script>
     
     <script>
         tailwind.config = {
@@ -246,46 +246,36 @@
         };
 
         // ======================== 腾讯云 CloudBase 配置 ========================
-        // 替换成你的腾讯云环境ID！！！
-        const CLOUDBASE_ENV_ID = "my-graph-6gryb0wt964d13c6"; // 比如：my-dev-env-12345
+        // 你的环境ID（已填好）
+        const CLOUDBASE_ENV_ID = "my-graph-6gryb0wt964d13c6";
         
-        // 初始化腾讯云
-async function initCloudBase() {
-    try {
-        // 先加载最新版 SDK（解决版本兼容问题）
-        await new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/tcb-js-sdk@2.19.0/dist/tcb.js';
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-        });
-
-        // 初始化云开发（用最新语法）
-        const app = window.tcb.init({
-            env: "my-graph-6gryb0wt964d13c6", // 你的环境ID
-            region: "ap-guangzhou" // 必须加地域！改成你创建环境时选的地域（广州/上海/北京）
-        });
-        
-        // 匿名登录（兼容新版 SDK）
-        const auth = app.auth({ persistence: "local" });
-        await auth.anonymousAuthProvider().signIn();
-        
-        // 获取数据库实例
-        db = app.database();
-        console.log("腾讯云初始化成功！");
-        showNotification("数据同步已连接", "success");
-        
-        // 加载云端数据
-        await loadDataFromCloud();
-    } catch (e) {
-        console.error("腾讯云初始化失败：", e);
-        // 显示具体错误信息
-        showNotification(`连接失败：${e.message || e}`, "error");
-        // 降级使用本地数据
-        loadLocalData();
-    }
-}
+        // 初始化腾讯云（简化版，修复所有兼容问题）
+        async function initCloudBase() {
+            try {
+                // 初始化云开发
+                const app = window.tcb.init({
+                    env: CLOUDBASE_ENV_ID
+                });
+                
+                // 匿名登录（核心：修复登录逻辑）
+                const auth = app.auth({ persistence: "local" });
+                await auth.anonymousAuthProvider().signIn();
+                
+                // 获取数据库实例
+                db = app.database();
+                console.log("✅ 腾讯云初始化成功！");
+                showNotification("数据同步已连接", "success");
+                
+                // 加载云端数据
+                await loadDataFromCloud();
+            } catch (e) {
+                console.error("❌ 腾讯云初始化失败：", e);
+                // 显示具体错误信息
+                showNotification(`连接失败：${e.message || e}`, "error");
+                // 降级使用本地数据
+                loadLocalData();
+            }
+        }
 
         // 从云端加载数据
         async function loadDataFromCloud() {
@@ -303,10 +293,10 @@ async function initCloudBase() {
                     nextId = Math.max(...characters.map(c => c.id || 0)) + 1;
                 }
                 
-                console.log("从云端加载数据：", characters.length, "个角色，", relationships.length, "个关系");
+                console.log(`✅ 从云端加载：${characters.length}个角色，${relationships.length}个关系`);
                 updateCharacterDisplay();
             } catch (e) {
-                console.error("加载云端数据失败：", e);
+                console.error("❌ 加载云端数据失败：", e);
                 loadLocalData();
             }
         }
@@ -322,9 +312,9 @@ async function initCloudBase() {
                     const res = await db.collection('characters').add(character);
                     character._id = res.id;
                 }
-                console.log("角色已保存到云端");
+                console.log("✅ 角色已保存到云端");
             } catch (e) {
-                console.error("保存角色失败：", e);
+                console.error("❌ 保存角色失败：", e);
                 showNotification("数据同步失败", "error");
             }
         }
@@ -339,9 +329,9 @@ async function initCloudBase() {
                     const res = await db.collection('relationships').add(relationship);
                     relationship._id = res.id;
                 }
-                console.log("关系已保存到云端");
+                console.log("✅ 关系已保存到云端");
             } catch (e) {
-                console.error("保存关系失败：", e);
+                console.error("❌ 保存关系失败：", e);
                 showNotification("数据同步失败", "error");
             }
         }
@@ -361,7 +351,7 @@ async function initCloudBase() {
                         .map(r => r._id ? db.collection('relationships').doc(r._id).remove() : Promise.resolve())
                 );
             } catch (e) {
-                console.error("删除云端数据失败：", e);
+                console.error("❌ 删除云端数据失败：", e);
             }
         }
 
@@ -374,7 +364,7 @@ async function initCloudBase() {
                     await db.collection('relationships').doc(relationship._id).remove();
                 }
             } catch (e) {
-                console.error("删除关系失败：", e);
+                console.error("❌ 删除关系失败：", e);
             }
         }
 
@@ -391,9 +381,16 @@ async function initCloudBase() {
             }
             
             updateCharacterDisplay();
+            showNotification("已切换为本地模式，数据保存在浏览器中", "info");
         }
 
-        // ======================== 原有功能逻辑 ========================
+        // ======================== 核心功能函数 ========================
+        // 修复缺失的 renderGraph 函数
+        function renderGraph() {
+            console.log("✅ 图谱渲染初始化完成");
+            updateCharacterDisplay();
+        }
+
         // 初始化函数
         async function init() {
             // 先初始化腾讯云
@@ -405,7 +402,7 @@ async function initCloudBase() {
             // 设置画布拖拽和缩放
             setupCanvasDragAndZoom();
             
-            // 渲染图谱
+            // 渲染图谱（修复函数未定义问题）
             renderGraph();
             
             // 添加窗口大小变化监听
@@ -456,7 +453,7 @@ async function initCloudBase() {
                 // 第一个角色居中
                 character.x = centerX;
                 character.y = centerY;
-                console.log(`第一个角色 ${name} 位置: (${character.x}, ${character.y})`);
+                console.log(`✅ 第一个角色 ${name} 位置: (${character.x}, ${character.y})`);
             } else {
                 // 后续角色围绕中心角色均匀分布
                 const firstCharacter = characters[0];
@@ -470,7 +467,7 @@ async function initCloudBase() {
                 character.x += (Math.random() - 0.5) * 50;
                 character.y += (Math.random() - 0.5) * 50;
                 
-                console.log(`角色 ${name} 位置: (${character.x.toFixed(0)}, ${character.y.toFixed(0)})`);
+                console.log(`✅ 角色 ${name} 位置: (${character.x.toFixed(0)}, ${character.y.toFixed(0)})`);
             }
 
             // 保存到云端
@@ -551,7 +548,7 @@ async function initCloudBase() {
 
         // 选择角色
         function selectCharacter(character) {
-            console.log('选择角色:', character.name, character.id);
+            console.log('✅ 选择角色:', character.name, character.id);
             selectedCharacter = character;
             updateCharacterDisplay();
             
@@ -787,7 +784,7 @@ async function initCloudBase() {
             
             document.getElementById('resetViewBtn').addEventListener('click', resetCanvasView);
             
-            console.log('画布拖拽和缩放功能已初始化');
+            console.log('✅ 画布拖拽和缩放功能已初始化');
         }
 
         // 执行自动排版
@@ -851,7 +848,7 @@ async function initCloudBase() {
                     character.y = centerY + finalRadius * Math.sin(finalAngle);
                     
                     saveCharacterToCloud(character);
-                    console.log(`角色 ${character.name} 位置: (${character.x.toFixed(0)}, ${character.y.toFixed(0)})`);
+                    console.log(`✅ 角色 ${character.name} 位置: (${character.x.toFixed(0)}, ${character.y.toFixed(0)})`);
                 });
             }
             
@@ -1067,11 +1064,11 @@ async function initCloudBase() {
         
         // 更新关系线
         function updateRelationshipLines() {
-            console.log('开始更新关系线...');
+            console.log('✅ 开始更新关系线...');
             
             const svg = document.getElementById('relationship-lines');
             if (!svg) {
-                console.error('未找到SVG元素');
+                console.error('❌ 未找到SVG元素');
                 return;
             }
             
@@ -1085,30 +1082,26 @@ async function initCloudBase() {
             svg.style.zIndex = '5';
             svg.style.pointerEvents = 'none';
             
-            console.log('关系数量:', relationships.length, '角色数量:', characters.length);
+            console.log(`✅ 关系数量: ${relationships.length}，角色数量: ${characters.length}`);
             
             relationships.forEach((relationship, index) => {
-                console.log(`处理关系 ${index + 1}:`, relationship);
+                console.log(`✅ 处理关系 ${index + 1}:`, relationship);
                 
                 const sourceCharacter = characters.find(c => c.id === relationship.sourceId);
                 const targetCharacter = characters.find(c => c.id === relationship.targetId);
                 
                 if (!sourceCharacter || !targetCharacter) {
-                    console.log('跳过无效关系');
+                    console.log('❌ 跳过无效关系');
                     return;
                 }
                 
                 if (sourceCharacter.x === undefined || sourceCharacter.y === undefined ||
                     targetCharacter.x === undefined || targetCharacter.y === undefined) {
-                    console.log('角色缺少坐标信息:', sourceCharacter.name, targetCharacter.name);
+                    console.log('❌ 角色缺少坐标信息:', sourceCharacter.name, targetCharacter.name);
                     return;
                 }
                 
-                console.log('角色坐标:', 
-                    sourceCharacter.name, '(', sourceCharacter.x.toFixed(0), ',', sourceCharacter.y.toFixed(0), ')',
-                    '->',
-                    targetCharacter.name, '(', targetCharacter.x.toFixed(0), ',', targetCharacter.y.toFixed(0), ')'
-                );
+                console.log(`✅ 角色坐标: ${sourceCharacter.name} (${sourceCharacter.x.toFixed(0)}, ${sourceCharacter.y.toFixed(0)}) -> ${targetCharacter.name} (${targetCharacter.x.toFixed(0)}, ${targetCharacter.y.toFixed(0)})`);
                 
                 const x1 = sourceCharacter.x;
                 const y1 = sourceCharacter.y;
@@ -1151,7 +1144,7 @@ async function initCloudBase() {
                 svg.appendChild(text);
             });
             
-            console.log('关系线更新完成');
+            console.log('✅ 关系线更新完成');
         }
 
         // 页面加载完成后初始化
