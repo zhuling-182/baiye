@@ -251,31 +251,40 @@
         
         // 初始化腾讯云（简化版，修复所有兼容问题）
         async function initCloudBase() {
-            try {
-                // 初始化云开发
-                const app = window.tcb.init({
-                    env: CLOUDBASE_ENV_ID
-                });
-                
-                // 匿名登录（核心：修复登录逻辑）
-                const auth = app.auth({ persistence: "local" });
-                await auth.anonymousAuthProvider().signIn();
-                
-                // 获取数据库实例
-                db = app.database();
-                console.log("✅ 腾讯云初始化成功！");
-                showNotification("数据同步已连接", "success");
-                
-                // 加载云端数据
-                await loadDataFromCloud();
-            } catch (e) {
-                console.error("❌ 腾讯云初始化失败：", e);
-                // 显示具体错误信息
-                showNotification(`连接失败：${e.message || e}`, "error");
-                // 降级使用本地数据
-                loadLocalData();
-            }
+    try {
+        // 等待 SDK 加载完成
+        let attempts = 0;
+        while (!window.tcb && attempts < 20) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
         }
+        
+        if (!window.tcb) {
+            throw new Error("腾讯云 SDK 加载失败，请检查网络");
+        }
+
+        // 初始化云开发
+        const app = window.tcb.init({
+            env: "my-graph-6gryb0wt964d13c6"
+        });
+        
+        // 匿名登录
+        const auth = app.auth({ persistence: "local" });
+        await auth.anonymousAuthProvider().signIn();
+        
+        // 获取数据库实例
+        db = app.database();
+        console.log("✅ 腾讯云初始化成功！");
+        showNotification("数据同步已连接", "success");
+        
+        // 加载云端数据
+        await loadDataFromCloud();
+    } catch (e) {
+        console.error("❌ 腾讯云初始化失败：", e);
+        showNotification(`连接失败：${e.message || e}`, "error");
+        loadLocalData();
+    }
+}
 
         // 从云端加载数据
         async function loadDataFromCloud() {
